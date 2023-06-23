@@ -16,7 +16,7 @@
 # under the License.
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from flask import g
 from sqlalchemy.orm import Session
@@ -27,9 +27,12 @@ from superset.models.slice import Slice
 
 
 def import_chart(
-    session: Session, config: Dict[str, Any], overwrite: bool = False
+    session: Session,
+    config: dict[str, Any],
+    overwrite: bool = False,
+    ignore_permissions: bool = False,
 ) -> Slice:
-    can_write = security_manager.can_access("can_write", "Chart")
+    can_write = ignore_permissions or security_manager.can_access("can_write", "Chart")
     existing = session.query(Slice).filter_by(uuid=config["uuid"]).first()
     if existing:
         if not overwrite or not can_write:

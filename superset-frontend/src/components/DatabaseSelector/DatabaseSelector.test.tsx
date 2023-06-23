@@ -18,10 +18,16 @@
  */
 
 import React from 'react';
+import { act } from 'react-dom/test-utils';
 import fetchMock from 'fetch-mock';
-import { render, screen, waitFor } from 'spec/helpers/testing-library';
-import { queryClient } from 'src/views/QueryProvider';
+import {
+  render,
+  screen,
+  waitFor,
+  defaultStore as store,
+} from 'spec/helpers/testing-library';
 import userEvent from '@testing-library/user-event';
+import { api } from 'src/hooks/apiResources/queryApi';
 import DatabaseSelector, { DatabaseSelectorProps } from '.';
 import { EmptyStateSmall } from '../EmptyState';
 
@@ -40,7 +46,6 @@ const createProps = (): DatabaseSelectorProps => ({
   handleError: jest.fn(),
   onDbChange: jest.fn(),
   onSchemaChange: jest.fn(),
-  onSchemasLoad: jest.fn(),
 });
 
 const fakeDatabaseApiResult = {
@@ -164,24 +169,26 @@ function setupFetchMock() {
 }
 
 beforeEach(() => {
-  queryClient.clear();
   setupFetchMock();
 });
 
 afterEach(() => {
   fetchMock.reset();
+  act(() => {
+    store.dispatch(api.util.resetApiState());
+  });
 });
 
 test('Should render', async () => {
   const props = createProps();
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
   expect(await screen.findByTestId('DatabaseSelector')).toBeInTheDocument();
 });
 
 test('Refresh should work', async () => {
   const props = createProps();
 
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
 
   expect(fetchMock.calls(schemaApiRoute).length).toBe(0);
 
@@ -213,7 +220,7 @@ test('Refresh should work', async () => {
 
 test('Should database select display options', async () => {
   const props = createProps();
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
   const select = screen.getByRole('combobox', {
     name: 'Select database or type to search databases',
   });
@@ -234,7 +241,7 @@ test('should show empty state if there are no options', async () => {
       db={undefined}
       emptyState={<EmptyStateSmall title="empty" image="" />}
     />,
-    { useRedux: true },
+    { useRedux: true, store },
   );
   const select = screen.getByRole('combobox', {
     name: 'Select database or type to search databases',
@@ -247,7 +254,7 @@ test('should show empty state if there are no options', async () => {
 
 test('Should schema select display options', async () => {
   const props = createProps();
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
   const select = screen.getByRole('combobox', {
     name: 'Select schema or type to search schemas',
   });
@@ -263,7 +270,7 @@ test('Should schema select display options', async () => {
 
 test('Sends the correct db when changing the database', async () => {
   const props = createProps();
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
   const select = screen.getByRole('combobox', {
     name: 'Select database or type to search databases',
   });
@@ -283,7 +290,7 @@ test('Sends the correct db when changing the database', async () => {
 
 test('Sends the correct schema when changing the schema', async () => {
   const props = createProps();
-  render(<DatabaseSelector {...props} />, { useRedux: true });
+  render(<DatabaseSelector {...props} />, { useRedux: true, store });
   const select = screen.getByRole('combobox', {
     name: 'Select schema or type to search schemas',
   });

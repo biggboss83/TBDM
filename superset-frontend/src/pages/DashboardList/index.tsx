@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import { styled, SupersetClient, t } from '@superset-ui/core';
+import { FeatureFlag, styled, SupersetClient, t } from '@superset-ui/core';
 import React, { useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import rison from 'rison';
-import { isFeatureEnabled, FeatureFlag } from 'src/featureFlags';
+import { isFeatureEnabled } from 'src/featureFlags';
 import {
   createFetchRelated,
   createErrorHandler,
@@ -31,7 +31,7 @@ import ConfirmStatusChange from 'src/components/ConfirmStatusChange';
 import { TagsList } from 'src/components/Tags';
 import handleResourceExport from 'src/utils/export';
 import Loading from 'src/components/Loading';
-import SubMenu, { SubMenuProps } from 'src/views/components/SubMenu';
+import SubMenu, { SubMenuProps } from 'src/features/home/SubMenu';
 import ListView, {
   ListViewProps,
   Filter,
@@ -54,9 +54,8 @@ import Dashboard from 'src/dashboard/containers/Dashboard';
 import { Dashboard as CRUDDashboard } from 'src/views/CRUD/types';
 import CertifiedBadge from 'src/components/CertifiedBadge';
 import { loadTags } from 'src/components/Tags/utils';
-import getBootstrapData from 'src/utils/getBootstrapData';
-import DashboardCard from 'src/views/CRUD/dashboard/DashboardCard';
-import { DashboardStatus } from 'src/views/CRUD/dashboard/types';
+import DashboardCard from 'src/features/dashboards/DashboardCard';
+import { DashboardStatus } from 'src/features/dashboards/types';
 
 const PAGE_SIZE = 25;
 const PASSWORDS_NEEDED_MESSAGE = t(
@@ -84,7 +83,6 @@ interface DashboardListProps {
 
 interface Dashboard {
   changed_by_name: string;
-  changed_by_url: string;
   changed_on_delta_humanized: string;
   changed_by: string;
   dashboard_title: string;
@@ -100,8 +98,6 @@ interface Dashboard {
 const Actions = styled.div`
   color: ${({ theme }) => theme.colors.grayscale.base};
 `;
-
-const bootstrapData = getBootstrapData();
 
 function DashboardList(props: DashboardListProps) {
   const {
@@ -143,8 +139,6 @@ function DashboardList(props: DashboardListProps) {
   const [importingDashboard, showImportModal] = useState<boolean>(false);
   const [passwordFields, setPasswordFields] = useState<string[]>([]);
   const [preparingExport, setPreparingExport] = useState<boolean>(false);
-  const enableBroadUserAccess =
-    bootstrapData?.common?.conf?.ENABLE_BROAD_ACTIVITY_ACCESS;
   const [sshTunnelPasswordFields, setSSHTunnelPasswordFields] = useState<
     string[]
   >([]);
@@ -195,7 +189,6 @@ function DashboardList(props: DashboardListProps) {
             if (dashboard.id === json?.result?.id) {
               const {
                 changed_by_name,
-                changed_by_url,
                 changed_by,
                 dashboard_title = '',
                 slug = '',
@@ -210,7 +203,6 @@ function DashboardList(props: DashboardListProps) {
               return {
                 ...dashboard,
                 changed_by_name,
-                changed_by_url,
                 changed_by,
                 dashboard_title,
                 slug,
@@ -312,17 +304,9 @@ function DashboardList(props: DashboardListProps) {
       {
         Cell: ({
           row: {
-            original: {
-              changed_by_name: changedByName,
-              changed_by_url: changedByUrl,
-            },
+            original: { changed_by_name: changedByName },
           },
-        }: any) =>
-          enableBroadUserAccess ? (
-            <a href={changedByUrl}>{changedByName}</a>
-          ) : (
-            <>{changedByName}</>
-          ),
+        }: any) => <>{changedByName}</>,
         Header: t('Modified by'),
         accessor: 'changed_by.first_name',
         size: 'xl',
@@ -596,7 +580,7 @@ function DashboardList(props: DashboardListProps) {
         key: 'tags',
         id: 'tags',
         input: 'select',
-        operator: FilterOperator.chartTags,
+        operator: FilterOperator.dashboardTags,
         unfilteredLabel: t('All'),
         fetchSelects: loadTags,
       });

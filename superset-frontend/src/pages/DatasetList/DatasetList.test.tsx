@@ -23,6 +23,7 @@ import fetchMock from 'fetch-mock';
 import { Provider } from 'react-redux';
 import { styledMount as mount } from 'spec/helpers/theming';
 import { render, screen, cleanup } from 'spec/helpers/testing-library';
+import { FeatureFlag } from '@superset-ui/core';
 import userEvent from '@testing-library/user-event';
 import { QueryParamProvider } from 'use-query-params';
 import * as featureFlags from 'src/featureFlags';
@@ -33,7 +34,7 @@ import Button from 'src/components/Button';
 import IndeterminateCheckbox from 'src/components/IndeterminateCheckbox';
 import waitForComponentToPaint from 'spec/helpers/waitForComponentToPaint';
 import { act } from 'react-dom/test-utils';
-import SubMenu from 'src/views/components/SubMenu';
+import SubMenu from 'src/features/home/SubMenu';
 
 // store needed for withToasts(DatasetList)
 const mockStore = configureStore([thunk]);
@@ -49,7 +50,6 @@ const datasetsEndpoint = 'glob:*/api/v1/dataset/?*';
 const mockdatasets = [...new Array(3)].map((_, i) => ({
   changed_by_name: 'user',
   kind: i === 0 ? 'virtual' : 'physical', // ensure there is 1 virtual
-  changed_by_url: 'changed_by_url',
   changed_by: 'user',
   changed_on: new Date().toISOString(),
   database_name: `db ${i}`,
@@ -255,10 +255,7 @@ describe('RTL', () => {
     return mounted;
   }
 
-  let isFeatureEnabledMock: jest.SpyInstance<
-    boolean,
-    [feature: featureFlags.FeatureFlag]
-  >;
+  let isFeatureEnabledMock: jest.SpyInstance<boolean, [feature: FeatureFlag]>;
   beforeEach(async () => {
     isFeatureEnabledMock = jest
       .spyOn(featureFlags, 'isFeatureEnabled')

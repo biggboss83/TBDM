@@ -27,6 +27,7 @@ import {
   Behavior,
   ChartDataResponseResult,
   Column,
+  FeatureFlag,
   Filter,
   GenericDataType,
   getChartMetadataRegistry,
@@ -45,6 +46,7 @@ import React, {
   useMemo,
   useState,
 } from 'react';
+import rison from 'rison';
 import { PluginFilterSelectCustomizeProps } from 'src/filters/components/Select/types';
 import { useSelector } from 'react-redux';
 import { getChartDataRequest } from 'src/components/Chart/chartAction';
@@ -52,6 +54,7 @@ import { Input, TextArea } from 'src/components/Input';
 import { Select, FormInstance } from 'src/components';
 import Collapse from 'src/components/Collapse';
 import BasicErrorAlert from 'src/components/ErrorMessage/BasicErrorAlert';
+import ErrorMessageWithStackTrace from 'src/components/ErrorMessage/ErrorMessageWithStackTrace';
 import { FormItem } from 'src/components/Form';
 import Icons from 'src/components/Icons';
 import Loading from 'src/components/Loading';
@@ -59,6 +62,7 @@ import { addDangerToast } from 'src/components/MessageToasts/actions';
 import { Radio } from 'src/components/Radio';
 import Tabs from 'src/components/Tabs';
 import { Tooltip } from 'src/components/Tooltip';
+import { cachedSupersetGet } from 'src/utils/cachedSupersetGet';
 import {
   Chart,
   ChartsState,
@@ -67,9 +71,12 @@ import {
 } from 'src/dashboard/types';
 import DateFilterControl from 'src/explore/components/controls/DateFilterControl';
 import AdhocFilterControl from 'src/explore/components/controls/FilterControl/AdhocFilterControl';
-import { FeatureFlag, isFeatureEnabled } from 'src/featureFlags';
+import { isFeatureEnabled } from 'src/featureFlags';
 import { waitForAsyncData } from 'src/middleware/asyncEvent';
-import { ClientErrorObject } from 'src/utils/getClientErrorObject';
+import {
+  ClientErrorObject,
+  getClientErrorObject,
+} from 'src/utils/getClientErrorObject';
 import { SingleValueType } from 'src/filters/components/Range/SingleValueType';
 import {
   getFormData,
@@ -89,13 +96,12 @@ import getControlItemsMap from './getControlItemsMap';
 import RemovedFilter from './RemovedFilter';
 import { useBackendFormUpdate, useDefaultValue } from './state';
 import {
-  cachedSupersetGet,
-  FILTER_SUPPORTED_TYPES,
   hasTemporalColumns,
   mostUsedDataset,
   setNativeFilterFieldValues,
   useForceUpdate,
 } from './utils';
+import { FILTER_SUPPORTED_TYPES, INPUT_WIDTH } from './constants';
 import DependencyList from './DependencyList';
 
 const TabPane = styled(Tabs.TabPane)`
@@ -343,7 +349,7 @@ const FiltersConfigForm = (
   ref: React.RefObject<any>,
 ) => {
   const isRemoved = !!removedFilters[filterId];
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<ClientErrorObject>();
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [activeTabKey, setActiveTabKey] = useState<string>(
     FilterTabs.configuration.key,
@@ -361,7 +367,7 @@ const FiltersConfigForm = (
   const formFilter = formValues || undoFormValues || defaultFormFilter;
 
   const dependencies: string[] =
-    formFilter?.dependencies || filterToEdit?.cascadeParentIds;
+    formFilter?.dependencies || filterToEdit?.cascadeParentIds || [];
 
   const nativeFilterItems = getChartMetadataRegistry().items;
   const nativeFilterVizTypes = Object.entries(nativeFilterItems)
@@ -438,11 +444,11 @@ const FiltersConfigForm = (
 
   const setNativeFilterFieldValuesWrapper = (values: object) => {
     setNativeFilterFieldValues(form, filterId, values);
-    setError('');
+    setError(undefined);
     forceUpdate();
   };
 
-  const setErrorWrapper = (error: string) => {
+  const setErrorWrapper = (error: ClientErrorObject) => {
     setNativeFilterFieldValues(form, filterId, {
       defaultValueQueriesData: null,
     });
@@ -504,10 +510,10 @@ const FiltersConfigForm = (
                     defaultValueQueriesData: asyncResult,
                   });
                 })
-                .catch((error: ClientErrorObject) => {
-                  setError(
-                    error.message || error.error || t('Check configuration'),
-                  );
+                .catch((error: Response) => {
+                  getClientErrorObject(error).then(clientErrorObject => {
+                    setErrorWrapper(clientErrorObject);
+                  });
                 });
             } else {
               throw new Error(
@@ -521,10 +527,8 @@ const FiltersConfigForm = (
           }
         })
         .catch((error: Response) => {
-          error.json().then(body => {
-            setErrorWrapper(
-              body.message || error.statusText || t('Check configuration'),
-            );
+          getClientErrorObject(error).then(clientErrorObject => {
+            setError(clientErrorObject);
           });
         });
     },
@@ -649,12 +653,33 @@ const FiltersConfigForm = (
   const hasAvailableFilters = availableFilters.length > 0;
   const hasTimeDependency = availableFilters
     .filter(filter => filter.type === 'filter_time')
-    .some(filter => dependencies.includes(filter.value));
+    .some(filter => dependencies?.includes(filter.value));
 
   useEffect(() => {
     if (datasetId) {
       cachedSupersetGet({
-        endpoint: `/api/v1/dataset/${datasetId}`,
+        endpoint: `/api/v1/dataset/${datasetId}?q=${rison.encode({
+          columns: [
+            'columns.column_name',
+            'columns.expression',
+            'columns.filterable',
+            'columns.is_dttm',
+            'columns.type',
+            'columns.verbose_name',
+            'database.id',
+            'database.database_name',
+            'datasource_type',
+            'filter_select_enabled',
+            'id',
+            'is_sqllab_view',
+            'main_dttm_col',
+            'metrics.metric_name',
+            'metrics.verbose_name',
+            'schema',
+            'sql',
+            'table_name',
+          ],
+        })}`,
       })
         .then((response: JsonResponse) => {
           setMetrics(response.json?.result?.metrics);
@@ -934,6 +959,11 @@ const FiltersConfigForm = (
                   <CollapsibleControl
                     initialValue={hasPreFilter}
                     title={t('Pre-filter available values')}
+                    tooltip={t(`Add filter clauses to control the filter's source query,
+                    though only in the context of the autocomplete i.e., these conditions
+                    do not impact how the filter is applied to the dashboard. This is useful
+                    when you want to improve the query's performance by only scanning a subset
+                    of the underlying data or limit the available values displayed in the filter.`)}
                     onChange={checked => {
                       formChanged();
                       if (checked) {
@@ -943,6 +973,7 @@ const FiltersConfigForm = (
                   >
                     <StyledRowSubFormItem
                       name={['filters', filterId, 'adhoc_filters']}
+                      css={{ width: INPUT_WIDTH }}
                       initialValue={filterToEdit?.adhoc_filters}
                       required
                       rules={[
@@ -1192,39 +1223,46 @@ const FiltersConfigForm = (
                       },
                     ]}
                   >
-                    {error ? (
-                      <BasicErrorAlert
-                        title={t('Cannot load filter')}
-                        body={error}
-                        level="error"
-                      />
-                    ) : showDefaultValue ? (
+                    {error || showDefaultValue ? (
                       <DefaultValueContainer>
-                        <DefaultValue
-                          setDataMask={dataMask => {
-                            if (
-                              !isEqual(
-                                initialDefaultValue?.filterState?.value,
-                                dataMask?.filterState?.value,
-                              )
-                            ) {
-                              formChanged();
+                        {error ? (
+                          <ErrorMessageWithStackTrace
+                            error={error.errors?.[0]}
+                            fallback={
+                              <BasicErrorAlert
+                                title={t('Cannot load filter')}
+                                body={error.error}
+                                level="error"
+                              />
                             }
-                            setNativeFilterFieldValues(form, filterId, {
-                              defaultDataMask: dataMask,
-                            });
-                            form.validateFields([
-                              ['filters', filterId, 'defaultDataMask'],
-                            ]);
-                            forceUpdate();
-                          }}
-                          hasDefaultValue={hasDefaultValue}
-                          filterId={filterId}
-                          hasDataset={hasDataset}
-                          form={form}
-                          formData={newFormData}
-                          enableNoResults={enableNoResults}
-                        />
+                          />
+                        ) : (
+                          <DefaultValue
+                            setDataMask={dataMask => {
+                              if (
+                                !isEqual(
+                                  initialDefaultValue?.filterState?.value,
+                                  dataMask?.filterState?.value,
+                                )
+                              ) {
+                                formChanged();
+                              }
+                              setNativeFilterFieldValues(form, filterId, {
+                                defaultDataMask: dataMask,
+                              });
+                              form.validateFields([
+                                ['filters', filterId, 'defaultDataMask'],
+                              ]);
+                              forceUpdate();
+                            }}
+                            hasDefaultValue={hasDefaultValue}
+                            filterId={filterId}
+                            hasDataset={hasDataset}
+                            form={form}
+                            formData={newFormData}
+                            enableNoResults={enableNoResults}
+                          />
+                        )}
                         {hasDataset && datasetId && (
                           <Tooltip title={t('Refresh the default values')}>
                             <RefreshIcon onClick={() => refreshHandler(true)} />

@@ -20,6 +20,7 @@ import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import rehypeRaw from 'rehype-raw';
+import remarkGfm from 'remark-gfm';
 import { mergeWith, isArray } from 'lodash';
 import { FeatureFlag, isFeatureEnabled } from '../utils';
 
@@ -43,12 +44,11 @@ function SafeMarkdown({
   htmlSanitization = true,
   htmlSchemaOverrides = {},
 }: SafeMarkdownProps) {
-  const displayHtml = isFeatureEnabled(FeatureFlag.DISPLAY_MARKDOWN_HTML);
   const escapeHtml = isFeatureEnabled(FeatureFlag.ESCAPE_MARKDOWN_HTML);
 
   const rehypePlugins = useMemo(() => {
     const rehypePlugins: any = [];
-    if (displayHtml && !escapeHtml) {
+    if (!escapeHtml) {
       rehypePlugins.push(rehypeRaw);
       if (htmlSanitization) {
         const schema = getOverrideHtmlSchema(
@@ -59,11 +59,15 @@ function SafeMarkdown({
       }
     }
     return rehypePlugins;
-  }, [displayHtml, escapeHtml, htmlSanitization, htmlSchemaOverrides]);
+  }, [escapeHtml, htmlSanitization, htmlSchemaOverrides]);
 
   // React Markdown escapes HTML by default
   return (
-    <ReactMarkdown rehypePlugins={rehypePlugins} skipHtml={!displayHtml}>
+    <ReactMarkdown
+      rehypePlugins={rehypePlugins}
+      remarkPlugins={[remarkGfm]}
+      skipHtml={false}
+    >
       {source}
     </ReactMarkdown>
   );

@@ -16,7 +16,7 @@
 # under the License.
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -28,10 +28,14 @@ from superset.models.core import Database
 
 def import_database(
     session: Session,
-    config: Dict[str, Any],
+    config: dict[str, Any],
     overwrite: bool = False,
+    ignore_permissions: bool = False,
 ) -> Database:
-    can_write = security_manager.can_access("can_write", "Database")
+    can_write = ignore_permissions or security_manager.can_access(
+        "can_write",
+        "Database",
+    )
     existing = session.query(Database).filter_by(uuid=config["uuid"]).first()
     if existing:
         if not overwrite or not can_write:
