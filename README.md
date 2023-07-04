@@ -1,5 +1,8 @@
 # TBDM Final Project
 
+## Disclaimer
+This project is for educational purposes only. It is not intended to be used in a production environment as it lacks all security precautions. It is based off a fork of the [Superset repository](https://github.com/apache/superset) since it requires a specific setup for `Docker Compose` to run and it was simpler to extend that repository than to create a new one from scratch.
+
 ## Overview
 This project is a statistical analysis tool for League of Legends games. We can load JSON files into MongoDB, query the database with Trino and visualize the data with Superset.
 
@@ -38,6 +41,7 @@ Go to the `Advanced` tab and under `SQL Lab` enable the following options:
 Once the application is running, you can access it by navigating to `http://localhost:8088` in your web browser. From there, you can query the database and visualize the data.
 Example queries:
 - `SELECT info.gameCreation FROM mongo.league.matches;`
+
 
 ## Future Improvements
 - Use the RIOT Games API to load data into MongoDB
